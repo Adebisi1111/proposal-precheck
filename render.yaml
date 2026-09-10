@@ -3,8 +3,8 @@ services:
     name: proposal-precheck
     region: oregon
     plan: free
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
     envVars:
       - key: CONTRACT_ADDRESS
         value: 0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c
