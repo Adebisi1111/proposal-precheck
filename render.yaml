@@ -7,7 +7,7 @@ services:
     startCommand: node server.js
     envVars:
       - key: CONTRACT_ADDRESS
-        value: 0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c
+        value: 0x746404bddc74954bb51303c11E35CA78543643E5
       - key: PRIVATE_KEY
         sync: false
     healthCheckPath: /api/health
