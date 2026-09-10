@@ -7,10 +7,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'static')));
 
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c';
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x746404bddc74954bb51303c11E35CA78543643E5';
 const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 
-// Immediate health check - no heavy imports
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -36,39 +35,68 @@ app.post('/api/precheck', async (req, res) => {
       return res.status(500).json({ detail: 'PRIVATE_KEY not set. Add it in Render Environment.' });
     }
 
-    // Lazy load to avoid startup delay
     const { createClient, chains } = require('genlayer-js');
     const { privateKeyToAccount } = require('viem/accounts');
-    
+
     if (!PRIVATE_KEY.startsWith('0x')) {
       return res.status(500).json({ detail: 'PRIVATE_KEY must start with 0x' });
     }
-    
+
     const account = privateKeyToAccount(PRIVATE_KEY);
     const client = createClient({ chain: chains.testnetBradbury, account });
 
-    await client.writeContract({
+    // Write transaction
+    const txHash = await client.writeContract({
       address: CONTRACT_ADDRESS,
       functionName: 'check_proposal',
       args: [proposal_id, title, description],
     });
 
-    // Wait for finalization
-    await new Promise(r => setTimeout(r, 10000));
+    // Poll for result - GenLayer consensus takes 2-3 minutes
+    let attempts = 0;
+    const maxAttempts = 30; // 30 attempts x 10 seconds = 5 minutes
+    let data = null;
 
-    const check = await client.readContract({
-      address: CONTRACT_ADDRESS,
-      functionName: 'get_check',
-      args: [proposal_id],
-    });
+    while (attempts < maxAttempts) {
+      await new Promise(r => setTimeout(r, 10000)); // Wait 10 seconds
+      attempts++;
 
-    const data = JSON.parse(check);
+      try {
+        const check = await client.readContract({
+          address: CONTRACT_ADDRESS,
+          functionName: 'get_check',
+          args: [proposal_id],
+        });
+
+        const parsed = JSON.parse(check);
+        if (parsed.exists && parsed.checked) {
+          data = parsed;
+          break;
+        }
+      } catch (e) {
+        // Not ready yet, continue polling
+      }
+    }
+
+    if (!data) {
+      return res.status(202).json({
+        proposal_id,
+        verdict: 'PENDING',
+        reasoning: 'Proposal is still being validated by GenLayer consensus. Please check back in 2-3 minutes.',
+        confidence: 0,
+        status: 'pending',
+        tx_hash: txHash,
+        contract: CONTRACT_ADDRESS
+      });
+    }
+
     res.json({
       proposal_id: data.proposal_id || proposal_id,
       verdict: data.verdict || 'REVIEW',
       reasoning: data.reasoning || 'No reasoning available',
       confidence: data.confidence || 0,
       status: 'success',
+      tx_hash: txHash,
       contract: CONTRACT_ADDRESS
     });
   } catch (err) {
