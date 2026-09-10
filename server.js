@@ -12,7 +12,12 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 
 // Immediate health check - no heavy imports
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', contract: CONTRACT_ADDRESS, network: 'GenLayer Bradbury' });
+  res.json({
+    status: 'ok',
+    contract: CONTRACT_ADDRESS,
+    network: 'GenLayer Bradbury',
+    has_private_key: !!PRIVATE_KEY
+  });
 });
 
 app.get('/healthz', (req, res) => {
@@ -25,6 +30,10 @@ app.post('/api/precheck', async (req, res) => {
     const { proposal_id, title, description } = req.body;
     if (!proposal_id || !title || !description) {
       return res.status(400).json({ detail: 'proposal_id, title, and description required' });
+    }
+
+    if (!PRIVATE_KEY) {
+      return res.status(500).json({ detail: 'PRIVATE_KEY not set. Add it in Render Environment.' });
     }
 
     // Lazy load to avoid startup delay
