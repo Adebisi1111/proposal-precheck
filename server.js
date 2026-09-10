@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { createClient, chains } = require('genlayer-js');
 
 const app = express();
 app.use(cors());
@@ -11,10 +10,16 @@ app.use(express.static(path.join(__dirname, 'static')));
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c';
 const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 
+// Immediate health check - no heavy imports
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', contract: CONTRACT_ADDRESS, network: 'GenLayer Bradbury' });
 });
 
+app.get('/healthz', (req, res) => {
+  res.send('ok');
+});
+
+// Precheck - lazy load genlayer-js only when needed
 app.post('/api/precheck', async (req, res) => {
   try {
     const { proposal_id, title, description } = req.body;
@@ -22,6 +27,8 @@ app.post('/api/precheck', async (req, res) => {
       return res.status(400).json({ detail: 'proposal_id, title, and description required' });
     }
 
+    // Lazy load to avoid startup delay
+    const { createClient, chains } = require('genlayer-js');
     const client = createClient({ chain: chains.testnetBradbury, account: PRIVATE_KEY });
 
     await client.writeContract({
@@ -30,6 +37,7 @@ app.post('/api/precheck', async (req, res) => {
       args: [proposal_id, title, description],
     });
 
+    // Wait for finalization
     await new Promise(r => setTimeout(r, 10000));
 
     const check = await client.readContract({
@@ -55,6 +63,7 @@ app.post('/api/precheck', async (req, res) => {
 
 app.get('/api/check/:proposal_id', async (req, res) => {
   try {
+    const { createClient, chains } = require('genlayer-js');
     const client = createClient({ chain: chains.testnetBradbury });
     const check = await client.readContract({
       address: CONTRACT_ADDRESS,
@@ -69,6 +78,7 @@ app.get('/api/check/:proposal_id', async (req, res) => {
 
 app.get('/api/stats', async (req, res) => {
   try {
+    const { createClient, chains } = require('genlayer-js');
     const client = createClient({ chain: chains.testnetBradbury });
     const count = await client.readContract({
       address: CONTRACT_ADDRESS,

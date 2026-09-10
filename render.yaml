@@ -10,4 +10,4 @@ services:
         value: 0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c
       - key: PRIVATE_KEY
         sync: false
-    healthCheckPath: /api/health
+    healthCheckPath: /healthz
