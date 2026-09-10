@@ -242,6 +242,79 @@
       font-size: 0.9rem;
     }
 
+    /* Actions */
+    .result-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: transparent;
+      color: var(--text);
+    }
+
+    .btn-secondary:hover { background: rgba(255,255,255,0.05); border-color: var(--blue); }
+
+    /* Recent Checks */
+    .recent-checks {
+      margin-top: 1rem;
+    }
+
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--hairline);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .recent-item:hover { background: rgba(255,255,255,0.03); }
+
+    .recent-item:last-child { border-bottom: none; }
+
+    .recent-badge {
+      padding: 4px 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+
+    .recent-badge.pass { background: rgba(74,222,128,0.15); color: var(--green); }
+    .recent-badge.fail { background: rgba(248,113,113,0.15); color: var(--red); }
+    .recent-badge.review { background: rgba(251,191,36,0.15); color: var(--yellow); }
+
+    .recent-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .recent-title {
+      font-size: 0.85rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .recent-id {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
     /* How it works */
     .how-it-works {
       display: grid;
@@ -349,7 +422,15 @@
         <span class="result-confidence" id="resultConfidence">Confidence: 85%</span>
       </div>
       <div class="result-reasoning" id="resultReasoning"></div>
+      <div class="result-actions">
+        <button class="btn-secondary" onclick="checkAnother()">Check Another Proposal</button>
+      </div>
     </div>
+  </div>
+
+  <div class="card recent-checks" id="recentCard" style="display:none;">
+    <h2>Recent Checks</h2>
+    <div id="recentList"></div>
   </div>
 
   <div id="how-it-works">
@@ -377,11 +458,18 @@
 <footer>
   <div><a href="https://github.com/Adebisi1111" target="_blank">GitHub</a> · <a href="https://docs.genlayer.com" target="_blank">GenLayer Docs</a></div>
   <div style="margin-top:0.5rem">© 2026 Proposal Pre-Check — Built on GenLayer</div>
-  <div class="contract-address">Contract: 0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c</div>
+  <div class="contract-address">Contract: 0x746404bddc74954bb51303c11E35CA78543643E5</div>
 </footer>
 
 <script>
 const API_BASE = window.location.origin;
+let recentChecks = JSON.parse(localStorage.getItem('recentChecks') || '[]');
+
+// Load recent checks on page load
+if (recentChecks.length > 0) {
+  document.getElementById('recentCard').style.display = 'block';
+  renderRecent();
+}
 
 async function checkProposal() {
   const id = document.getElementById('proposalId').value.trim();
@@ -422,6 +510,15 @@ async function checkProposal() {
     confidence.textContent = `Confidence: ${data.confidence}%`;
     reasoning.textContent = data.reasoning;
     result.classList.add('show');
+
+    // Add to recent checks
+    addToRecent({
+      id: data.proposal_id || id,
+      title: title,
+      verdict: data.verdict,
+      confidence: data.confidence,
+      reasoning: data.reasoning
+    });
   } catch (err) {
     const badge = document.getElementById('resultBadge');
     const confidence = document.getElementById('resultConfidence');
@@ -437,6 +534,62 @@ async function checkProposal() {
     btn.classList.remove('loading');
     btn.textContent = 'Check Proposal';
   }
+}
+
+function addToRecent(check) {
+  // Remove duplicate if exists
+  recentChecks = recentChecks.filter(c => c.id !== check.id);
+  // Add to front
+  recentChecks.unshift(check);
+  // Keep only last 10
+  recentChecks = recentChecks.slice(0, 10);
+  // Save to localStorage
+  localStorage.setItem('recentChecks', JSON.stringify(recentChecks));
+  // Show recent card
+  document.getElementById('recentCard').style.display = 'block';
+  renderRecent();
+}
+
+function renderRecent() {
+  const list = document.getElementById('recentList');
+  list.innerHTML = recentChecks.map(c => `
+    <div class="recent-item" onclick="loadRecent('${c.id}')">
+      <span class="recent-badge ${c.verdict.toLowerCase()}">${c.verdict}</span>
+      <div class="recent-info">
+        <div class="recent-title">${escapeHtml(c.title)}</div>
+        <div class="recent-id">${c.id} · ${c.confidence}% confidence</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function loadRecent(id) {
+  const check = recentChecks.find(c => c.id === id);
+  if (!check) return;
+
+  document.getElementById('proposalId').value = check.id;
+  document.getElementById('proposalTitle').value = check.title;
+  document.getElementById('proposalDesc').value = check.reasoning.substring(0, 200) + '...';
+
+  // Scroll to form
+  document.getElementById('check').scrollIntoView({ behavior: 'smooth' });
+}
+
+function checkAnother() {
+  // Clear form
+  document.getElementById('proposalId').value = '';
+  document.getElementById('proposalTitle').value = '';
+  document.getElementById('proposalDesc').value = '';
+  // Hide result
+  document.getElementById('result').classList.remove('show');
+  // Focus on first field
+  document.getElementById('proposalId').focus();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 </script>
 
