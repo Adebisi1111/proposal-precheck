@@ -11,36 +11,27 @@ app.use(express.static(path.join(__dirname, 'static')));
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c';
 const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', contract: CONTRACT_ADDRESS, network: 'GenLayer Bradbury' });
 });
 
-// Pre-check proposal
 app.post('/api/precheck', async (req, res) => {
   try {
     const { proposal_id, title, description } = req.body;
-    
     if (!proposal_id || !title || !description) {
       return res.status(400).json({ detail: 'proposal_id, title, and description required' });
     }
 
-    const client = createClient({
-      chain: chains.testnetBradbury,
-      account: PRIVATE_KEY
-    });
+    const client = createClient({ chain: chains.testnetBradbury, account: PRIVATE_KEY });
 
-    // Call contract to check proposal
     await client.writeContract({
       address: CONTRACT_ADDRESS,
       functionName: 'check_proposal',
       args: [proposal_id, title, description],
     });
 
-    // Wait for finalization
     await new Promise(r => setTimeout(r, 10000));
 
-    // Read result
     const check = await client.readContract({
       address: CONTRACT_ADDRESS,
       functionName: 'get_check',
@@ -48,7 +39,6 @@ app.post('/api/precheck', async (req, res) => {
     });
 
     const data = JSON.parse(check);
-
     res.json({
       proposal_id: data.proposal_id || proposal_id,
       verdict: data.verdict || 'REVIEW',
@@ -63,7 +53,6 @@ app.post('/api/precheck', async (req, res) => {
   }
 });
 
-// Get check result
 app.get('/api/check/:proposal_id', async (req, res) => {
   try {
     const client = createClient({ chain: chains.testnetBradbury });
@@ -78,7 +67,6 @@ app.get('/api/check/:proposal_id', async (req, res) => {
   }
 });
 
-// Stats
 app.get('/api/stats', async (req, res) => {
   try {
     const client = createClient({ chain: chains.testnetBradbury });
@@ -93,7 +81,6 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Serve frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'static', 'index.html'));
 });
