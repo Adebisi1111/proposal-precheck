@@ -38,7 +38,14 @@ app.post('/api/precheck', async (req, res) => {
 
     // Lazy load to avoid startup delay
     const { createClient, chains } = require('genlayer-js');
-    const client = createClient({ chain: chains.testnetBradbury, account: PRIVATE_KEY });
+    const { privateKeyToAccount } = require('viem/accounts');
+    
+    if (!PRIVATE_KEY.startsWith('0x')) {
+      return res.status(500).json({ detail: 'PRIVATE_KEY must start with 0x' });
+    }
+    
+    const account = privateKeyToAccount(PRIVATE_KEY);
+    const client = createClient({ chain: chains.testnetBradbury, account });
 
     await client.writeContract({
       address: CONTRACT_ADDRESS,
