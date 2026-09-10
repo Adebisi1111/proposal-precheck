@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proposal Pre-Check — AI-Powered DAO Validation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0c0c0c;
+      --text: #ffffff;
+      --muted: #9e9e9e;
+      --blue: #006cd2;
+      --blue-dark: #0053a3;
+      --hairline: rgba(255,255,255,0.065);
+      --green: #4ade80;
+      --red: #f87171;
+      --yellow: #fbbf24;
+      --font: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --pad-x: clamp(20px, 3.52vw, 64px);
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: clamp(20px, 5vw, 56px);
+      padding: 1rem 2rem;
+      background: rgba(12,12,12,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo-text { font-size: 1.5rem; font-weight: 700; color: var(--text); letter-spacing: -0.5px; text-transform: lowercase; }
+
+    .nav-links { display: flex; gap: 34px; align-items: center; }
+    .nav-links a { font-weight: 700; font-size: 0.875rem; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; text-transform: uppercase; }
+    .nav-links a:hover { color: var(--blue); }
+
+    .spacer { flex: 1; }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(74,222,128,0.1);
+      color: var(--green);
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid rgba(74,222,128,0.2);
+    }
+
+    .badge-live::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: clamp(60px, 10vh, 100px) var(--pad-x) clamp(40px, 6vh, 60px);
+    }
+
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: -1px;
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 1.2rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Main */
+    .main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 var(--pad-x) clamp(40px, 6vh, 60px);
+    }
+
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--hairline);
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: var(--muted);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text);
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .form-input::placeholder { color: rgba(255,255,255,0.3); }
+    .form-input:focus { outline: none; border-color: var(--blue); background: rgba(255,255,255,0.08); }
+
+    textarea.form-input { resize: none; min-height: 120px; }
+
+    .submit-btn {
+      width: 100%;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: var(--blue);
+      color: #fff;
+      margin-top: 0.5rem;
+    }
+
+    .submit-btn:hover { background: #6BA0FF; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .submit-btn.loading {
+      position: relative;
+      color: transparent;
+    }
+
+    .submit-btn.loading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin: -10px 0 0 -10px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result */
+    .result {
+      display: none;
+      margin-top: 1.5rem;
+      padding: 1.5rem;
+      border: 1px solid var(--hairline);
+    }
+
+    .result.show { display: block; }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .result-badge {
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .result-badge.pass { background: rgba(74,222,128,0.15); color: var(--green); }
+    .result-badge.fail { background: rgba(248,113,113,0.15); color: var(--red); }
+    .result-badge.review { background: rgba(251,191,36,0.15); color: var(--yellow); }
+
+    .result-confidence {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .result-reasoning {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.85);
+      padding: 1rem;
+      background: rgba(255,255,255,0.03);
+      border-left: 3px solid var(--blue);
+    }
+
+    .result-error {
+      color: var(--red);
+      font-size: 0.9rem;
+    }
+
+    /* How it works */
+    .how-it-works {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .step {
+      text-align: center;
+      padding: 1.5rem 1rem;
+    }
+
+    .step-number {
+      width: 36px;
+      height: 36px;
+      background: var(--blue);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+    }
+
+    .step h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .step p {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 700px) {
+      .how-it-works { grid-template-columns: 1fr; }
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--hairline);
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--blue); }
+
+    .contract-address {
+      font-family: monospace;
+      font-size: 0.7rem;
+      opacity: 0.6;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="nav-logo">
+    <span class="nav-logo-text">precheck<span style="font-weight:400;color:rgba(255,255,255,0.5)">.dao</span></span>
+  </a>
+
+  <div class="nav-links">
+    <a href="#check">Check</a>
+    <a href="#how-it-works">How It Works</a>
+  </div>
+
+  <div class="spacer"></div>
+
+  <span class="badge-live">Live on Bradbury</span>
+</nav>
+
+<section class="hero">
+  <h1>AI Proposal Validation</h1>
+  <p>Before your DAO votes, let GenLayer's AI validators check your proposal for clarity, feasibility, and risks.</p>
+</section>
+
+<main class="main">
+  <div class="card" id="check">
+    <h2>Check Your Proposal</h2>
+    <div class="form-group">
+      <label class="form-label">Proposal ID</label>
+      <input type="text" class="form-input" id="proposalId" placeholder="e.g., prop-001">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input type="text" class="form-input" id="proposalTitle" placeholder="Proposal title">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-input" id="proposalDesc" placeholder="Describe your proposal in detail..."></textarea>
+    </div>
+    <button class="submit-btn" id="checkBtn" onclick="checkProposal()">Check Proposal</button>
+
+    <div id="result" class="result">
+      <div class="result-header">
+        <span class="result-badge" id="resultBadge">PASS</span>
+        <span class="result-confidence" id="resultConfidence">Confidence: 85%</span>
+      </div>
+      <div class="result-reasoning" id="resultReasoning"></div>
+    </div>
+  </div>
+
+  <div id="how-it-works">
+    <h2 style="text-align:center; font-size:1.5rem; font-weight:600; margin-bottom:1.5rem;">How It Works</h2>
+    <div class="how-it-works">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Paste Proposal</h3>
+        <p>Enter your proposal title and description</p>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>AI Analysis</h3>
+        <p>GenLayer validators independently assess your proposal</p>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Get Verdict</h3>
+        <p>Receive a PASS, FAIL, or REVIEW badge with reasoning</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div><a href="https://github.com/Adebisi1111" target="_blank">GitHub</a> · <a href="https://docs.genlayer.com" target="_blank">GenLayer Docs</a></div>
+  <div style="margin-top:0.5rem">© 2026 Proposal Pre-Check — Built on GenLayer</div>
+  <div class="contract-address">Contract: 0xE2cEFCC1C449dBD8BBa32858a09eD72738A6976c</div>
+</footer>
+
+<script>
+const API_BASE = window.location.origin;
+
+async function checkProposal() {
+  const id = document.getElementById('proposalId').value.trim();
+  const title = document.getElementById('proposalTitle').value.trim();
+  const desc = document.getElementById('proposalDesc').value.trim();
+  const btn = document.getElementById('checkBtn');
+  const result = document.getElementById('result');
+
+  if (!id || !title || !desc) {
+    alert('Please fill all fields');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.textContent = 'Checking...';
+  result.classList.remove('show');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/precheck`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal_id: id, title, description: desc })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || 'Request failed');
+    }
+
+    const badge = document.getElementById('resultBadge');
+    const confidence = document.getElementById('resultConfidence');
+    const reasoning = document.getElementById('resultReasoning');
+
+    badge.textContent = data.verdict;
+    badge.className = 'result-badge ' + data.verdict.toLowerCase();
+    confidence.textContent = `Confidence: ${data.confidence}%`;
+    reasoning.textContent = data.reasoning;
+    result.classList.add('show');
+  } catch (err) {
+    const badge = document.getElementById('resultBadge');
+    const confidence = document.getElementById('resultConfidence');
+    const reasoning = document.getElementById('resultReasoning');
+
+    badge.textContent = 'ERROR';
+    badge.className = 'result-badge fail';
+    confidence.textContent = '';
+    reasoning.textContent = err.message;
+    result.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.textContent = 'Check Proposal';
+  }
+}
+</script>
+
+</body>
+</html>
