@@ -273,6 +273,20 @@
 
     .btn-secondary:hover { background: rgba(255,255,255,0.05); border-color: var(--blue); }
 
+    .verify-outcome {
+      margin-top: 0.85rem;
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--hairline);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      display: none;
+    }
+    .verify-outcome.show { display: block; }
+    .verify-outcome.match { border-color: var(--green); background: rgba(74,222,128,0.08); }
+    .verify-outcome.mismatch { border-color: var(--red); background: rgba(248,113,113,0.08); }
+    .verify-outcome code { word-break: break-all; }
+
     /* Recent Checks */
     .recent-checks {
       margin-top: 1rem;
@@ -433,8 +447,10 @@
       </div>
       <div class="result-reasoning" id="resultReasoning"></div>
       <div class="result-actions">
+        <button class="btn-secondary" onclick="verifyVerdict()">Verify This Verdict</button>
         <button class="btn-secondary" onclick="checkAnother()">Check Another Proposal</button>
       </div>
+      <div class="verify-outcome" id="verifyOutcome"></div>
     </div>
   </div>
 
@@ -480,6 +496,63 @@ let recentChecks = JSON.parse(localStorage.getItem('recentChecks') || '[]');
 if (recentChecks.length > 0) {
   document.getElementById('recentCard').style.display = 'block';
   renderRecent();
+}
+
+// Independently confirm a verdict without trusting this app.
+//
+// The point is that the text is re-fetched from Snapshot HERE, not reused from
+// what was submitted, so the check is worth something: if the stored digest
+// matches a digest we just computed ourselves, the verdict is bound to those
+// exact bytes. Tamper with the text field and it must stop matching.
+async function verifyVerdict() {
+  const id = document.getElementById('proposalId').value.trim();
+  const out = document.getElementById('verifyOutcome');
+  if (!id) { out.textContent = 'Enter a proposal ID first.'; out.className = 'verify-outcome show mismatch'; return; }
+
+  out.className = 'verify-outcome show';
+  out.textContent = 'Re-fetching the proposal from Snapshot and re-hashing...';
+
+  let body = document.getElementById('proposalBody').value.trim();
+  let fetched = false;
+  if (!body) {
+    try {
+      const res = await fetch('https://hub.snapshot.org/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query { proposal(id: "${id.replace(/"/g, '')}") { body } }`,
+        }),
+      });
+      const doc = await res.json();
+      body = doc?.data?.proposal?.body || '';
+      fetched = true;
+    } catch { /* fall through to the failure message */ }
+  }
+
+  if (!body) {
+    out.className = 'verify-outcome show mismatch';
+    out.textContent = 'Could not retrieve the proposal text to compare against.';
+    return;
+  }
+
+  try {
+    const v = await fetch(
+      `${API_BASE}/api/verify/${encodeURIComponent(id)}?body=${encodeURIComponent(body)}`
+    ).then((r) => r.json());
+
+    out.className = 'verify-outcome show ' + (v.matches ? 'match' : 'mismatch');
+    out.innerHTML = v.matches
+      ? `Verified. The digest stored on-chain matches the text retrieved ` +
+        `from Snapshot${fetched ? ' just now' : ''}, so this verdict refers ` +
+        `to exactly those bytes.<br><code>${v.stored_hash}</code>`
+      : `Does not match. The stored verdict was bound to different text, ` +
+        `so it does not describe what was just retrieved.<br>` +
+        `stored: <code>${v.stored_hash}</code><br>` +
+        `computed: <code>${v.computed_hash}</code>`;
+  } catch (e) {
+    out.className = 'verify-outcome show mismatch';
+    out.textContent = 'Verification failed: ' + e.message;
+  }
 }
 
 // Poll /api/check/:id until the verdict is committed. State commits some
