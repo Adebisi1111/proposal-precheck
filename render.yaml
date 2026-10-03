@@ -3,11 +3,12 @@ services:
     name: proposal-precheck
     region: oregon
     plan: free
-    buildCommand: npm install
+    # rm -rf first: node_modules was committed to this repo until e58c1e32.
+    # With a populated tree already present npm skipped extracting
+    # genlayer-js's ESM chunks, and every contract call failed at runtime.
+    buildCommand: rm -rf node_modules && npm install
     startCommand: node server.js
     envVars:
-      # Studio dev (61997). The previous value was a Bradbury address whose
-      # contract could never execute: gl.Contract fails to load on this chain.
       - key: CONTRACT_ADDRESS
         value: 0x51FaC52B4C9ebEeaDcBbd45c9142117E69e17204
       # genlayer-js 1.x does not export studioDevnet at all; 2.0.0-rc.1 does.
