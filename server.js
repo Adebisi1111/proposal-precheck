@@ -134,10 +134,13 @@ app.post('/api/precheck', async (req, res) => {
       fees: { distribution: fees.distribution, feeValue: fees.feeValue },
     });
 
-    // A refused submission reports immediately rather than as "pending".
+    // Hold this request only briefly. Render's proxy returns 502 on a
+    // long-held connection, which looked like a failed submission even though
+    // the write landed. Return 202 with the tx and let the client poll
+    // /api/check/:id, which is cheap and repeatable.
     let final = null;
-    for (let i = 0; i < 20; i++) {
-      await new Promise((r) => setTimeout(r, 6000));
+    for (let i = 0; i < 3; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
       final = await leaderExecution(txHash);
       if (final) break;
     }
@@ -153,26 +156,19 @@ app.post('/api/precheck', async (req, res) => {
       });
     }
 
-    // State commits some seconds after the leader reports SUCCESS, so poll for
-    // the record rather than reading once.
+    // One quick read: if consensus was fast the record may already be there.
     let data = null;
-    for (let i = 0; i < 20; i++) {
-      await new Promise((r) => setTimeout(r, 6000));
-      try {
-        const parsed = JSON.parse(
-          await client.readContract({
-            address: CONTRACT_ADDRESS,
-            functionName: 'get_check',
-            args: [proposal_id],
-          })
-        );
-        if (parsed.exists) {
-          data = parsed;
-          break;
-        }
-      } catch {
-        /* not committed yet */
-      }
+    try {
+      const parsed = JSON.parse(
+        await client.readContract({
+          address: CONTRACT_ADDRESS,
+          functionName: 'get_check',
+          args: [proposal_id],
+        })
+      );
+      if (parsed.exists) data = parsed;
+    } catch {
+      /* not committed yet */
     }
 
     if (!data) {
@@ -180,7 +176,8 @@ app.post('/api/precheck', async (req, res) => {
         proposal_id,
         verdict: 'PENDING',
         reasoning:
-          'Consensus finished but state has not committed yet. Check back shortly.',
+          'Submitted. GenLayer validators are assessing it; this page will ' +
+          'update when the verdict is committed.',
         confidence: 0,
         status: 'pending',
         tx_hash: txHash,

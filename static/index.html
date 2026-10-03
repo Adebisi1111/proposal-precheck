@@ -482,6 +482,21 @@ if (recentChecks.length > 0) {
   renderRecent();
 }
 
+// Poll /api/check/:id until the verdict is committed. State commits some
+// seconds after consensus succeeds, so a single read can still be empty.
+async function pollForVerdict(proposalId, btn, tries = 40, gapMs = 6000) {
+  for (let i = 0; i < tries; i++) {
+    if (btn) btn.textContent = 'Consensus in progress...';
+    await new Promise((r) => setTimeout(r, gapMs));
+    try {
+      const rec = await fetch(`${API_BASE}/api/check/${encodeURIComponent(proposalId)}`)
+        .then((r) => r.json());
+      if (rec && rec.exists === true) return rec;
+    } catch { /* retry */ }
+  }
+  return null;
+}
+
 async function checkProposal() {
   const id = document.getElementById('proposalId').value.trim();
   const title = document.getElementById('proposalTitle').value.trim();
@@ -514,13 +529,31 @@ async function checkProposal() {
       })
     });
 
-    const data = await res.json();
+    let data = await res.json();
 
     if (!res.ok) {
       // A refusal from the contract is information, not a crash: show why.
       throw new Error(
         data.reasoning || data.detail || 'Request failed'
       );
+    }
+
+    // 202 means consensus is still running. The server cannot hold the request
+    // open - the host proxy 502s on long-held connections - so poll the cheap
+    // read endpoint until the record lands.
+    if (res.status === 202 || data.status === 'pending') {
+      data = await pollForVerdict(id, btn);
+      if (!data) {
+        // Record it anyway: the on-chain verdict WILL exist, and Recent Checks
+        // reloads from the contract, so the entry stays useful after a refresh.
+        addToRecent({ id, title: title || id, verdict: 'PENDING',
+                      confidence: 0, reasoning: 'Consensus still running.' });
+        renderRecent();
+        throw new Error(
+          'Still reaching consensus. Reload or check Recent Checks shortly - ' +
+          'the verdict is being committed on-chain.'
+        );
+      }
     }
 
     const badge = document.getElementById('resultBadge');
