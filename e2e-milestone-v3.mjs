@@ -94,7 +94,11 @@ async function main() {
   // Do NOT assume an empty store: this deployment may already hold records from
   // an earlier run. Every count below is a delta against this baseline.
   const baseCount = parseInt(await read('get_checks_count', []), 10);
-  console.log(`        baseline checks on this deployment: ${baseCount}`);
+  // Snapshot the space baseline HERE, before this run writes anything - reading
+  // it later would fold this run's own record into the "before" figure.
+  const baseSpaceBefore = parseInt(
+    (await read('get_space_stats', [SPACE])).total || 0, 10);
+  console.log(`        baseline: ${baseCount} checks, ${baseSpaceBefore} in ${SPACE}`);
 
   console.log('\n=== 1. a correctly declared digest is accepted ===');
   const id1 = '0x' + crypto.randomBytes(32).toString('hex');
@@ -156,16 +160,15 @@ async function main() {
   check('second check of the same id refused', dup.exec !== 'SUCCESS', `exec=${dup.exec}`);
 
   console.log('\n=== 7. space listing and stats ===');
-  const baseStatsBefore = parseInt(
-    (await read('get_space_stats', [SPACE])).total || 0, 10);
   const list = await readUntil('list_space', [SPACE],
     (l) => Array.isArray(l.proposals) && l.proposals.includes(id1));
   check('space lists the checked proposal',
     Array.isArray(list.proposals) && list.proposals.includes(id1), JSON.stringify(list));
   const stats = await readUntil('get_space_stats', [SPACE],
-    (s) => s && s.total >= baseStatsBefore);
+    (s) => s && s.total >= baseSpaceBefore + 1);
   check('stats include this proposal',
-    stats.total >= baseStatsBefore + 1, JSON.stringify(stats));
+    stats.total >= baseSpaceBefore + 1,
+    `before ${baseSpaceBefore}, now ${stats.total}`);
   check('avg confidence is sane', stats.avg_confidence >= 0 && stats.avg_confidence <= 100,
     String(stats.avg_confidence));
 
