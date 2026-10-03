@@ -130,6 +130,14 @@
 
     .form-group { margin-bottom: 1rem; }
 
+    .form-hint {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+
     .form-label {
       display: block;
       font-size: 0.8rem;
@@ -404,15 +412,17 @@
     <h2>Check Your Proposal</h2>
     <div class="form-group">
       <label class="form-label">Proposal ID</label>
-      <input type="text" class="form-input" id="proposalId" placeholder="e.g., prop-001">
+      <input type="text" class="form-input" id="proposalId" placeholder="Snapshot proposal ID (0x...)">
+      <label class="form-hint">Retrieved from the governance source. The verdict is judged on that text, not on anything typed here.</label>
     </div>
     <div class="form-group">
-      <label class="form-label">Title</label>
-      <input type="text" class="form-input" id="proposalTitle" placeholder="Proposal title">
+      <label class="form-label">Title (optional)</label>
+      <input type="text" class="form-input" id="proposalTitle" placeholder="Left blank, taken from the source">
     </div>
     <div class="form-group">
-      <label class="form-label">Description</label>
-      <textarea class="form-input" id="proposalDesc" placeholder="Describe your proposal in detail..."></textarea>
+      <label class="form-label">Proposal text (optional)</label>
+      <textarea class="form-input" id="proposalBody" placeholder="Leave blank to fetch the proposal from its source"></textarea>
+      <label class="form-hint">Supplying text here skips retrieval. Either way the contract hashes it and refuses any mismatch, so the verdict always refers to exact bytes.</label>
     </div>
     <button class="submit-btn" id="checkBtn" onclick="checkProposal()">Check Proposal</button>
 
@@ -474,12 +484,16 @@ if (recentChecks.length > 0) {
 async function checkProposal() {
   const id = document.getElementById('proposalId').value.trim();
   const title = document.getElementById('proposalTitle').value.trim();
-  const desc = document.getElementById('proposalDesc').value.trim();
+  const body = document.getElementById('proposalBody').value.trim();
   const btn = document.getElementById('checkBtn');
   const result = document.getElementById('result');
 
-  if (!id || !title || !desc) {
-    alert('Please fill all fields');
+  if (!id) {
+    alert('A proposal ID is required.');
+    return;
+  }
+  if (!title && !body) {
+    alert('Give a proposal ID to fetch, or paste the proposal text.');
     return;
   }
 
@@ -492,13 +506,20 @@ async function checkProposal() {
     const res = await fetch(`${API_BASE}/api/precheck`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proposal_id: id, title, description: desc })
+      body: JSON.stringify({
+        proposal_id: id,
+        ...(title ? { title } : {}),
+        ...(body ? { body } : {})
+      })
     });
 
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.detail || 'Request failed');
+      // A refusal from the contract is information, not a crash: show why.
+      throw new Error(
+        data.reasoning || data.detail || 'Request failed'
+      );
     }
 
     const badge = document.getElementById('resultBadge');
@@ -507,8 +528,20 @@ async function checkProposal() {
 
     badge.textContent = data.verdict;
     badge.className = 'result-badge ' + data.verdict.toLowerCase();
-    confidence.textContent = `Confidence: ${data.confidence}%`;
-    reasoning.textContent = data.reasoning;
+    let conf = `Confidence: ${data.confidence}%`;
+    if (data.status === 'pending') {
+      conf = 'Consensus still running';
+    }
+    confidence.textContent = conf;
+
+    let text = data.reasoning;
+    if (data.body_hash) {
+      text += `\n\nContent digest (SHA-256): ${data.body_hash}` +
+        (data.body_hash_matches === false
+          ? '\nNote: the digest returned differs from the one submitted.'
+          : '');
+    }
+    reasoning.textContent = text;
     result.classList.add('show');
 
     // Add to recent checks
@@ -569,7 +602,7 @@ function loadRecent(id) {
 
   document.getElementById('proposalId').value = check.id;
   document.getElementById('proposalTitle').value = check.title;
-  document.getElementById('proposalDesc').value = check.reasoning.substring(0, 200) + '...';
+  document.getElementById('proposalBody').value = check.reasoning.substring(0, 200) + '...';
 
   // Scroll to form
   document.getElementById('check').scrollIntoView({ behavior: 'smooth' });
@@ -579,7 +612,7 @@ function checkAnother() {
   // Clear form
   document.getElementById('proposalId').value = '';
   document.getElementById('proposalTitle').value = '';
-  document.getElementById('proposalDesc').value = '';
+  document.getElementById('proposalBody').value = '';
   // Hide result
   document.getElementById('result').classList.remove('show');
   // Focus on first field
