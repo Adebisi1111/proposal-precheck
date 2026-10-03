@@ -9,7 +9,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'static')));
 
 const CONTRACT_ADDRESS =
-  process.env.CONTRACT_ADDRESS || '0xF7e98d9e23406845E2B0e90D730b824e961dDEfB';
+  process.env.CONTRACT_ADDRESS || '0x51FaC52B4C9ebEeaDcBbd45c9142117E69e17204';
 const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 
 // Studio Next. genlayer-js 1.x does not export this chain; 2.0.0-rc.1 does.

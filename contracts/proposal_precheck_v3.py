@@ -42,9 +42,14 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-# Explicit imports, not `from genlayer import *`. The 2.x SDK runner that Studio
-# Next actually loads rejects the star-import form at contract load time
-# (exit_code 1); the pinned SDK header alone is not sufficient.
+# Explicit imports, NOT `from genlayer import *`. Both facts were verified on
+# the chain, not inferred:
+#   * the star-import form deploys fine on the 1.x runner gltest uses locally
+#     but fails on Studio Next with `exit_code 1`;
+#   * `gl.Contract` fails to load there too - the base class must be
+#     `gl.contract.Contract` (2.x only).
+# Local tests therefore generate their own variant rather than relying on this
+# file loading under 1.x.
 import genlayer as gl
 from genlayer import u256
 from genlayer.storage import TreeMap

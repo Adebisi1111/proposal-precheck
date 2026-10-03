@@ -67,7 +67,7 @@ async function read(fn, args) {
 // State commits some seconds after the leader reports SUCCESS - a read issued
 // immediately after a write can still see the previous state. Poll until the
 // expected value appears rather than racing it.
-async function readUntil(fn, args, predicate, tries = 12, gapMs = 6000) {
+async function readUntil(fn, args, predicate, tries = 30, gapMs = 10000) {
   let last;
   for (let i = 0; i < tries; i++) {
     last = await read(fn, args);
@@ -91,8 +91,10 @@ async function main() {
   console.log('=== contract identity ===');
   const ver = await read('contract_version', []);
   check('reports the milestone', String(ver).includes('milestone-1'), String(ver));
-  check('empty store', (await read('get_checks_count', [])) === '0' ||
-    parseInt(await read('get_checks_count', []), 10) === 0);
+  // Do NOT assume an empty store: this deployment may already hold records from
+  // an earlier run. Every count below is a delta against this baseline.
+  const baseCount = parseInt(await read('get_checks_count', []), 10);
+  console.log(`        baseline checks on this deployment: ${baseCount}`);
 
   console.log('\n=== 1. a correctly declared digest is accepted ===');
   const id1 = '0x' + crypto.randomBytes(32).toString('hex');
@@ -121,6 +123,9 @@ async function main() {
   check('store count unchanged by the refusal',
     parseInt(await read('get_checks_count', []), 10) === countBefore,
     `${countBefore} -> ${await read('get_checks_count', [])}`);
+  check('refusal count reflects the good write only',
+    parseInt(await read('get_checks_count', []), 10) === baseCount + 1,
+    `baseline ${baseCount}, now ${await read('get_checks_count', [])}`);
 
   console.log('\n=== 3. a reviewer can independently confirm the verdict ===');
   const v = await readUntil('verify_hash', [id1, BODY],
@@ -151,12 +156,16 @@ async function main() {
   check('second check of the same id refused', dup.exec !== 'SUCCESS', `exec=${dup.exec}`);
 
   console.log('\n=== 7. space listing and stats ===');
+  const baseStatsBefore = parseInt(
+    (await read('get_space_stats', [SPACE])).total || 0, 10);
   const list = await readUntil('list_space', [SPACE],
     (l) => Array.isArray(l.proposals) && l.proposals.includes(id1));
   check('space lists the checked proposal',
     Array.isArray(list.proposals) && list.proposals.includes(id1), JSON.stringify(list));
-  const stats = await readUntil('get_space_stats', [SPACE], (s) => s && s.total >= 1);
-  check('stats count it', stats.total === 1, JSON.stringify(stats));
+  const stats = await readUntil('get_space_stats', [SPACE],
+    (s) => s && s.total >= baseStatsBefore);
+  check('stats include this proposal',
+    stats.total >= baseStatsBefore + 1, JSON.stringify(stats));
   check('avg confidence is sane', stats.avg_confidence >= 0 && stats.avg_confidence <= 100,
     String(stats.avg_confidence));
 

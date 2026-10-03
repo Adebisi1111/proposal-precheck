@@ -58,16 +58,18 @@ def contract(direct_deploy):
     """
     import re
 
-    src = _SRC.read_text()
-    src = re.sub(r"py-genlayer:[a-z0-9]+", _LOCAL_PIN, src, count=1)
-    # gl.contract.Contract and genlayer.storage are 2.x-only; the local runner is
-    # 1.x. Same logic, older module layout, so the suite can execute the body.
+    src = re.sub(r"py-genlayer:[a-z0-9]+", _LOCAL_PIN, _SRC.read_text(), count=1)
+    # This file is written for the 2.x chain runner. gltest here has only 1.x,
+    # so rewrite the two 2.x-only constructs; the logic is untouched.
     src = src.replace("gl.contract.Contract", "gl.Contract")
+    # 1.x exposes TreeMap/allow_storage from the package root and has no
+    # attribute `Contract` - the star import binds the base class instead.
     src = src.replace(
+        "import genlayer as gl\n"
+        "from genlayer import u256\n"
         "from genlayer.storage import TreeMap\n"
         "from genlayer.storage import allow as allow_storage",
-        "from genlayer import TreeMap\n"
-        "from genlayer import allow_storage",
+        "from genlayer import *",
     )
     _LOCAL.write_text(src)
     return direct_deploy("contracts/_local_pin_proposal_precheck.py")
@@ -113,13 +115,29 @@ def test_refuses_an_empty_digest(contract, llm):
     assert "body_hash" in str(e.value)
 
 
-def test_mismatch_is_counted_for_audit(contract, llm):
-    before = int(json.loads(contract.get_rejected_hashes())["x"]
-                 if False else contract.get_rejected_hashes())
-    with pytest.raises(Exception):
+def test_refusal_leaves_the_store_untouched(contract, llm):
+    """A refused submission must change nothing.
+
+    There is deliberately NO rejected-hash counter: a transaction that raises
+    cannot persist state, so an increment would be rolled back with it and the
+    counter would read 0 forever. Refusals are observable in the reverted
+    transaction's result string instead, which names both digests. This test
+    pins that behaviour so the counter is not reintroduced as dead code.
+    """
+    before = int(contract.get_checks_count())
+    with pytest.raises(Exception) as e:
         contract.check_proposal(**_ok(llm, body_hash="0" * 64))
-    after = int(contract.get_rejected_hashes())
-    assert after == before + 1, (before, after)
+    msg = str(e.value)
+
+    assert "body_hash does not match body" in msg
+    assert int(contract.get_checks_count()) == before, "a refusal wrote state"
+    assert json.loads(contract.get_check("0xabc"))["exists"] is False
+    # both digests are named so the submitter can see which was wrong
+    assert "computed" in msg and "declared" in msg, msg
+
+    # and the counter must not exist on the contract at all
+    assert not hasattr(contract, "get_rejected_hashes"), \
+        "a rejected-hash counter cannot persist and must stay removed"
 
 
 def test_a_refused_submission_stores_nothing(contract, llm):

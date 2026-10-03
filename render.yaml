@@ -6,8 +6,13 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     envVars:
+      # Studio dev (61997). The previous value was a Bradbury address whose
+      # contract could never execute: gl.Contract fails to load on this chain.
       - key: CONTRACT_ADDRESS
-        value: 0x746404bddc74954bb51303c11E35CA78543643E5
+        value: 0x51FaC52B4C9ebEeaDcBbd45c9142117E69e17204
+      # genlayer-js 1.x does not export studioDevnet at all; 2.0.0-rc.1 does.
+      - key: CHAIN_NAME
+        value: studioDevnet
       - key: PRIVATE_KEY
         sync: false
     healthCheckPath: /api/health
